@@ -66,6 +66,6 @@ workflows:
           path: ~
           profile-name: html
           region: AWS_REGION
-          repo: myECRRepository
+          repo: myecrrepository
           skip-when-tags-exist: false
           tag: ${CIRCLE_SHA1}
