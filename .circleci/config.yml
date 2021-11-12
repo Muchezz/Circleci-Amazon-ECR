@@ -68,4 +68,4 @@ workflows:
           region: AWS_REGION
           repo: myecrrepository
           skip-when-tags-exist: false
-          tag: ${CIRCLE_SHA1}
+          tag: 'v1.0'
