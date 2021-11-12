@@ -67,5 +67,5 @@ workflows:
           profile-name: html
           region: AWS_REGION
           repo: myecrrepository
-          skip-when-tags-exist: false
-          tag: 'latest'
+          # skip-when-tags-exist: false
+          # tag: 'latest'
