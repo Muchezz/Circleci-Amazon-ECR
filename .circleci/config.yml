@@ -2,6 +2,8 @@ version: 2.1
 
 orbs:
   aws-ecr: circleci/aws-ecr@7.2.0
+  aws-eks: circleci/aws-eks@0.2.3
+  kubernetes: circleci/kubernetes@0.4.0
 
 parameters:
   tag:
@@ -11,54 +13,23 @@ parameters:
       (default = latest)
     type: string
 
-# workflows:
-#   build_test_deploy:
-#     jobs:
-#       - build_test
-#       - docker_hub_build_push_image:
-#           requires:
-#             - build_test
-#       - aws-ecr/build_and_push_image:
-#           region: us-east-1
-#           account-url: ${AWS_ECR_URLL}
-#           repo: ${CIRCLE_PROJECT_REPONAME}
-#           tag: ${CIRCLE_BUILD_NUM}
-#           requires:
-#             - build_test
-# jobs:
-#   build_test:
-#     docker:
-#       - image: circleci/python:2.7.14
-#     steps:
-#       - checkout
-#       - run:
-#           name: Setup VirtualEnv
-#           command: |
-#             virtualenv helloworld
-#             . helloworld/bin/activate
-#             pip install --no-cache-dir -r requirements.txt
-#       - run:
-#           name: Run Tests
-#           command: |
-#             . helloworld/bin/activate
-#             python test_hello_world.py
-#   docker_hub_build_push_image:
-#     docker:
-#       - image: circleci/python:2.7.14
-#     steps:
-#       - checkout
-#       - setup_remote_docker:
-#           docker_layer_caching: false
-#       - run:
-#           name: Build and push Docker image to Docker Hub
-#           command: |
-#             echo 'export TAG=0.1.${CIRCLE_BUILD_NUM}' >> ${BASH_ENV}
-#             echo 'export IMAGE_NAME=${CIRCLE_PROJECT_REPONAME}' >> ${BASH_ENV}
-#             source ${BASH_ENV}
-#             docker build -t ${DOCKER_LOGIN}/${IMAGE_NAME} -t ${DOCKER_LOGIN}/${IMAGE_NAME}:${TAG} .
-#             echo ${DOCKER_PWD} | docker login -u ${DOCKER_LOGIN} --password-stdin
-#             docker push ${DOCKER_LOGIN}/${IMAGE_NAME}
 
+jobs:
+  test-cluster:
+    executor: aws-eks/python3
+    parameters:
+      cluster-name:
+        description: |
+          Name of the EKS cluster
+        type: string
+    steps:
+      - kubernetes/install
+      - aws-eks/update-kubeconfig-with-authenticator:
+          cluster-name: << parameters.cluster-name >>
+      - run:
+          command: |
+            kubectl get services
+          name: Test cluster
 
 workflows:
   build_and_push_image:
@@ -77,3 +48,14 @@ workflows:
           repo: myecrrepository
           skip-when-tags-exist: false
           tag: v1.0
+
+      - aws-eks/create-cluster:
+          cluster-name: my-eks-demo
+      - test-cluster:
+          cluster-name: my-eks-demo
+          requires:
+            - aws-eks/create-cluster
+      - aws-eks/delete-cluster:
+          cluster-name: my-eks-demo
+          requires:
+            - test-cluster
