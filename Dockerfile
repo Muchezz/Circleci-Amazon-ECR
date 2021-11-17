@@ -1,24 +1,24 @@
-# Set the base image to use for subsequent instructions
-FROM node:alpine
+FROM python:3.10.0-bullseye
+LABEL maintainer="Mucheru Maina"
 
-# Add metadata to an image 
-LABEL app="simple-node-application"
-# Directive to set environmental variables key to value pair
-ENV NPM_CONFIG_LOGLEVEL warn
+## Step 1:
+# Create a working directory
+WORKDIR /app
 
-# Set the working directory for any subsequent ADD, COPY, CMD, ENTRYPOINT, 
-# or RUN instructions that follow it in the Dockerfile
-WORKDIR /usr/src/app
+## Step 2:
+# Copy source code to working directory
+COPY  ./app /app
 
-# Copy files or folders from source to the dest path in the image's filesystem.
-COPY index.html /usr/src/app/
-COPY . /usr/src/app/
+## Step 3:
+# Install packages from requirements.txt
+# hadolint ignore=DL3013
+RUN pip install --upgrade pip &&\
+    pip install --trusted-host pypi.python.org -r requirements.txt
 
-# Execute any commands on top of the current image as a new layer and commit the results.
-# RUN npm install --production
+## Step 4:
+#Expose port 80
+EXPOSE 80
 
-# Define the network ports that this container will listen on at runtime.
-EXPOSE 3000
-
-# Configure the container to be run as an executable.
-# ENTRYPOINT ["npm", "start"]
+## Step 5:
+# Run app.py at container launch
+CMD ["python", "app.py"]
