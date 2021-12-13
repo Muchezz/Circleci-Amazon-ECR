@@ -24,9 +24,9 @@ commands:
 parameters:
   docker_image:
     type: string
-    default: python:3.10.0-base
+    default: python:3.7.3-stretch
 jobs:
-  build:
+  lint:
     docker:
     # Use the same Docker base as the project
       - image: python:3.7.3-stretch
@@ -225,12 +225,13 @@ jobs:
 workflows:
   deployment:
     jobs:
-      # - build
-       
-
-      - create-cluster
-          # requires:
-          #   - build
+      - lint
+      - build-and-push-image:
+          requires:
+            - lint   
+      - create-cluster:
+          requires:
+            - build-and-push-image
       - test-cluster:
           cluster-name: sampleclusters
           aws-region: $AWS_REGION
