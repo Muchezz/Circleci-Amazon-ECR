@@ -65,14 +65,14 @@ jobs:
             . venv/bin/activate
             make lint      
 
-  # build-and-push-image:
-  #   machine: true
-  #   steps:
-  #        - checkout
-  #        - run: |
-  #           docker build -t elsiedev/sample:latest .
-  #           echo $DOCKERHUB_PASSWORD | docker login -u $DOCKER_USER --password-stdin
-  #           docker push elsiedev/sample:latest
+  build-and-push-image:
+    machine: true
+    steps:
+         - checkout
+         - run: |
+            docker build -t greentropikal/flaskapp:latest .
+            echo $DOCKERHUB_PASSWORD | docker login -u $DOCKER_LOGIN --password-stdin
+            docker push greentropikal/flaskapp:latest
 
 
   # Creation of Cluster        
