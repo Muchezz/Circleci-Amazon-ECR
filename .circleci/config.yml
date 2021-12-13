@@ -1,24 +1,49 @@
----
 version: 2.1
 
+orbs:
+  aws-eks: circleci/aws-eks@1.1.0
+  kubernetes: circleci/kubernetes@0.4.0
+  
+
+commands:
+  destroy-cluster:
+    description: Destroy EKS Cluster.
+    parameters:
+        cluster-name:
+          description: |
+            Name of the EKS cluster
+          type: string
+          
+    steps:
+      - run:
+          name: Destroy environments
+          when: on_fail
+          command: |
+            aws cloudformation delete-stack --stack-name eksctl-devopscapstone-nodegroup-nodegroup --region us-west-2
+            aws cloudformation delete-stack --stack-name eksctl-<< parameters.cluster-name >>-cluster --region us-west-2
 parameters:
   docker_image:
     type: string
-    default: python:3.10.0-bullseye
-
+    default: python:3.10.0-base
 jobs:
-  linting:
+  build:
     docker:
     # Use the same Docker base as the project
-      - image: << pipeline.parameters.docker_image >>
-    # working_directory: ~/repo
+      - image: python:3.7.3-stretch
+
+    working_directory: ~/repo
+
     steps:
       - checkout
+
+      # Download and cache dependencies
       - restore_cache:
           keys:
             - v1-dependencies-{{ checksum "requirements.txt" }}
             # fallback to using the latest cache if no exact match is found
             - v1-dependencies-
+
+
       - run:
           name: install dependencies
           command: |
@@ -32,68 +57,197 @@ jobs:
           paths:
             - ./venv
           key: v1-dependencies-{{ checksum "requirements.txt" }}
-          
+
+               
       - run:
           name: run lint
           command: |
             . venv/bin/activate
-            make lint     
+            make lint      
 
-  build_image_and_deploy_staging:
-    docker:
-      - image: << pipeline.parameters.docker_image >>
+  # build-and-push-image:
+  #   machine: true
+  #   steps:
+  #        - checkout
+  #        - run: |
+  #           docker build -t elsiedev/sample:latest .
+  #           echo $DOCKERHUB_PASSWORD | docker login -u $DOCKER_USER --password-stdin
+  #           docker push elsiedev/sample:latest
 
-    working_directory: ~/app
 
+  # Creation of Cluster        
+  create-cluster:
+    executor: aws-eks/python3
+    parameters:
+      cluster-name:
+        description: |
+          Name of the EKS cluster
+        type: string
+        default: sampleclusters
     steps:
-      - attach_workspace:
-          at: ~/app
+      - run:
+          name: Install the eksctl tool
+          command: |
+            if which eksctl > /dev/null; then
+              echo "eksctl is already installed"
+              exit 0
+            fi
+            mkdir -p eksctl_download
+            curl --silent --location --retry 5 "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" \
+              | tar xz -C eksctl_download
+            chmod +x eksctl_download/eksctl
+            SUDO=""
+            if [ $(id -u) -ne 0 ] && which sudo > /dev/null ; then
+              SUDO="sudo"
+            fi
+            $SUDO mv eksctl_download/eksctl /usr/local/bin/
+            rmdir eksctl_download
+      - aws-eks/install-aws-iam-authenticator:
+          release-tag: ''
+      - aws-eks/create-cluster:
+          cluster-name: sampleclusters
+          node-type: t3.medium
+      
+   # Test the Cluster               
+  test-cluster:
+    executor: aws-eks/python3
+    parameters:
+      cluster-name:
+        description: |
+          Name of the EKS cluster
+        type: string
+      aws-region:
+        description: |
+          AWS region
+        type: string
+        default: ""
+    steps:
+      - kubernetes/install
+      - aws-eks/update-kubeconfig-with-authenticator:
+          cluster-name: << parameters.cluster-name >>
+          aws-region: << parameters.aws-region >>
+      - run:
+          command: |
+            kubectl get services
+            kubectl get pods
+            kubectl describe pods
+            kubectl get nodes
+            kubectl get deployment
+            kubectl get services -o wide
+          name: Test cluster
 
-      - run:
-          name: Install awscli and gettext-base
-          command: |
-            sudo pip3 install awscli
-      - run:
-          name: Install aws-iam-authenticator
-          command: |
-            curl -o aws-iam-authenticator curl -o aws-iam-authenticator https://amazon-eks.s3-us-west-2.amazonaws.com/1.13.7/2019-06-11/bin/linux/amd64/aws-iam-authenticator
-            chmod +x ./aws-iam-authenticator
-            sudo mv ./aws-iam-authenticator /usr/local/bin/aws-iam-authenticator
-      - run:
-          name: Install kubectl
-          command: |
-            curl -o kubectl https://amazon-eks.s3-us-west-2.amazonaws.com/1.13.7/2019-06-11/bin/linux/amd64/kubectl
-            chmod +x ./kubectl
-            sudo mv ./kubectl /usr/local/bin/kubectl
 
-      - setup_remote_docker
+ # Deployment of the application
+  create-deployment:
+    executor: aws-eks/python3
+    parameters:
+      cluster-name:
+        description: |
+          Name of the EKS cluster
+        type: string
+      aws-region:
+        description: |
+          AWS region
+        type: string
+        default: ""
+    steps:
+      - checkout
+      - aws-eks/update-kubeconfig-with-authenticator:
+          cluster-name: << parameters.cluster-name >>
+          install-kubectl: true
+          aws-region: << parameters.aws-region >>
+      - kubernetes/create-or-update-resource:
+          get-rollout-status: true
+          resource-file-path: deployment/nginx-deployment.yaml
+          resource-name: deployment/sampleclusters
+          
+      - kubernetes/create-or-update-resource:
+          resource-file-path: deployment/app-service.yaml
 
+  undeploy-application:
+    executor: aws-eks/python3
+    parameters:
+      cluster-name:
+        description: |
+          Name of the EKS cluster
+        type: string
+      aws-region:
+        description: |
+          AWS region
+        type: string
+        default: ""
+    steps:
+      - aws-eks/update-kubeconfig-with-authenticator:
+          cluster-name: << parameters.cluster-name >>
+          install-kubectl: true
+          aws-region: << parameters.aws-region >>
+      - kubernetes/delete-resource:
+          resource-types: "deployment,service"
+          label-selector: "app=sampleclusters"
+          wait: true
       - run:
-          name: Login to repository and build docker image
+          name: Check on pod status
           command: |
-            eval $(aws ecr get-login --region $AWS_DEFAULT_REGION --no-include-email)
-            docker build -t ${AWS_REPOSITORY_URL}/${REPOSITORY_NAME}:${CIRCLE_BRANCH}-${CIRCLE_BUILD_NUM} .
-            docker push ${AWS_REPOSITORY_URL}/${REPOSITORY_NAME}:${CIRCLE_BRANCH}-${CIRCLE_BUILD_NUM}
+            kubectl get pods
+
+
+    # Delete cluster
+
+  delete-cluster:
+    executor: aws-eks/python3
+    steps:
       - run:
-          name: Prepare K8S templates
+          name: Install the eksctl tool
           command: |
-            aws eks --region $AWS_DEFAULT_REGION update-kubeconfig --name $CLUSTER_NAME
-            rm -rf .k8s/.generated && mkdir -p .k8s/.generated
-            for f in .k8s/templates/staging.yml
-              do
-              envsubst < $f > ".k8s/.generated/$(basename $f)"
-            done
-      - run:
-          name: Deploy
-          command: |
-            kubectl apply -f .k8s/.generated/ --validate=true
-            kubectl get pod
+            if which eksctl > /dev/null; then
+              echo "eksctl is already installed"
+              exit 0
+            fi
+            mkdir -p eksctl_download
+            curl --silent --location --retry 5 "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" \
+              | tar xz -C eksctl_download
+            chmod +x eksctl_download/eksctl
+            SUDO=""
+            if [ $(id -u) -ne 0 ] && which sudo > /dev/null ; then
+              SUDO="sudo"
+            fi
+            $SUDO mv eksctl_download/eksctl /usr/local/bin/
+            rmdir eksctl_download
+      - aws-eks/delete-cluster:
+          cluster-name: sampleclusters
+          aws-region: $AWS_REGION
+          wait: true  
+  
+
+
+
 
 workflows:
-  build-test-and-deploy:
+  deployment:
     jobs:
-      - linting
-      - build_image_and_deploy_staging:
+      # - build
+       
+
+      - create-cluster
+          # requires:
+          #   - build
+      - test-cluster:
+          cluster-name: sampleclusters
+          aws-region: $AWS_REGION
           requires:
-            - linting
-          
+            - create-cluster
+      - create-deployment:
+          cluster-name: sampleclusters
+          aws-region: $AWS_REGION
+          requires:
+            - test-cluster
+
+      # - undeploy-application:
+      #     cluster-name: sampleclusters
+      #     aws-region: $AWS_DEFAULT_REGION
+      #     requires:
+      #       - create-deployment
+
+      # - delete-cluster:
+      #     requires:
+      #       - undeploy-application

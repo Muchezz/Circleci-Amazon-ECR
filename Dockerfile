@@ -1,5 +1,5 @@
-FROM python:3.10.0-bullseye
-LABEL maintainer="Mucheru Maina"
+FROM python:3.7.3-stretch
+LABEL maintainer="My Name"
 
 ## Step 1:
 # Create a working directory
