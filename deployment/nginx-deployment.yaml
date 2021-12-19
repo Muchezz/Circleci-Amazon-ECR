@@ -21,7 +21,7 @@ spec:
         app: sampleclusters
     spec:
       containers:
-        - image: greentropikal/flaskapp:latest
+        - image: greentropikal/flaskappeks:latest
           imagePullPolicy: Always
           name: sampleclusters
           ports:

@@ -1,27 +1,39 @@
-<link rel="preconnect" href="https://fonts.gstatic.com">
-<link href="https://fonts.googleapis.com/css2?family=Rubik&display=swap" rel="stylesheet">
-
-<style>
-    * {
-        font-family: "Rubik", "sans-serif";
-    }
-
-    div {
-        text-align: center;
-        margin-top: 50px;
-    }
-
-    h1 {
-        color: red;
-        font-size: 40pt;
-    }
-
-    p {
-        font-size: 24pt;
-    }
-</style>
-
-<div>
-    <h1>Welcome!</h1><br>
-    <p>This site has been visited {{ count }} times.</p>
-</div>
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>GitMatched</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css" rel="stylesheet" media="screen">
+    <style>
+        .container {
+            max-width: 500px;
+            padding-top: 20px;
+        }
+        input {
+            max-width: 250px;
+        }
+        .avatar {
+            max-width: 150px;
+        }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+        <h1>Hello, and welcome to viewing GitMatched. My name is Nelson Okoye.</h1>
+        <br>
+        <!-- <form role="form" method="post" onsubmit="return false;">
+            <div class="form-group">
+                <input type="text" class="form-control" name="location" placeholder="Enter a location" required>
+                <input type="text" class="form-control" name="language" placeholder="Enter a programming langauge" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Find a developer!</button>
+            <button type="submit" class="btn btn-success" id="try-again">Try a different location</button>
+        </form> -->
+        <br>
+        <div id="results"></div>
+    </div>
+    <script src="http://code.jquery.com/jquery-1.11.0.min.js"></script>
+    <script src="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+    <script src={{ url_for('static', filename='main.js') }}></script>
+  </body>
+</html>
