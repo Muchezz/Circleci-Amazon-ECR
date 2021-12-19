@@ -1,13 +1,6 @@
-import time
-import requests
-import requests_cache
-
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template
 
 app = Flask(__name__)
-
-requests_cache.install_cache('github_cache', backend='sqlite', expire_after=180)
-
 
 @app.route('/')
 def home():
