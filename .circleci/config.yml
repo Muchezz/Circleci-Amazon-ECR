@@ -44,7 +44,7 @@ jobs:
           name: run lint
           command: |
             . venv/bin/activate
-            hadolint .nodeapp/Dockerfile
+            hadolint nodeapp/Dockerfile
   
   push-app-to-docker:
     machine: true
