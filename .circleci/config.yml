@@ -15,6 +15,7 @@ jobs:
           name: Build front-end
           command: |
             # Your code here
+            cd nodeapp
             sudo npm install
             
       - save_cache:
@@ -153,7 +154,7 @@ workflows:
           
       - create-cluster:
           requires: [push-app-to-docker]
-          
+
       - test-cluster:
           cluster-name: nodeapp
           aws-region: $AWS_REGION
